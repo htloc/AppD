@@ -10,7 +10,6 @@ hiltNavigationCompose = "1.2.0"
 navigationCompose = "2.8.4"
 coroutines = "1.9.0"
 kotlinxSerializationJson = "1.7.3"
-arcore = "1.46.0"
 coil = "2.7.0"
 accompanist = "0.36.0"
 
@@ -45,9 +44,6 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 
 # Serialization
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
-
-# ARCore
-arcore = { group = "com.google.ar", name = "core", version.ref = "arcore" }
 
 # Coil image loading
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
