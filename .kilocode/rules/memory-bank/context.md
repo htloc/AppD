@@ -14,6 +14,8 @@ The template is a clean Next.js 16 starter with TypeScript and Tailwind CSS 4. I
 - [x] ESLint configuration
 - [x] Memory bank documentation
 - [x] Recipe system for common features
+- [x] Placeholder image assets (5 PNG files) for KamenRiderDriverSimulator
+- [x] Placeholder sound assets (10 WAV-in-OGG files, silent) for KamenRiderDriverSimulator
 
 ## Current Structure
 
@@ -86,6 +88,7 @@ export async function GET() {
 |------|---------|
 | Initial | Template created with base setup |
 | 2026-03-17 | Generated full Kamen Rider Driver Simulator Android project in KamenRiderDriverSimulator/ |
+| 2026-03-17 | Added placeholder image and sound assets to KamenRiderDriverSimulator |
 
 ## KamenRiderDriverSimulator Sub-project
 
