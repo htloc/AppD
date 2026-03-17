@@ -86,9 +86,6 @@ dependencies {
     // Serialization
     implementation(libs.kotlinx.serialization.json)
 
-    // Media3 for sound (used by SoundManager via SoundPool, but keeping for future use)
-    implementation(libs.media3.exoplayer)
-
     // Coil for image loading
     implementation(libs.coil.compose)
 
