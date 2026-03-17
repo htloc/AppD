@@ -70,9 +70,13 @@ class SceneController @Inject constructor(
 
     fun attachToView(view: SceneView) {
         sceneView = view
-        anchorNode = AnchorNode().also {
-            it.setParent(view.scene)
-            it.localPosition = DEFAULT_POSITION
+        try {
+            anchorNode = AnchorNode().also {
+                it.setParent(view.scene)
+                it.localPosition = DEFAULT_POSITION
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not attach AnchorNode (Sceneform not fully init?): ${e.message}")
         }
         Log.d(TAG, "SceneController attached to SceneView")
     }
@@ -97,11 +101,15 @@ class SceneController @Inject constructor(
      */
     fun showModel(modelId: String) {
         scope.launch {
-            val renderable = modelLoader.load(modelId) ?: run {
-                Log.w(TAG, "Skipping showModel – renderable null for $modelId")
-                return@launch
+            try {
+                val renderable = modelLoader.load(modelId) ?: run {
+                    Log.w(TAG, "Skipping showModel – renderable null for $modelId (no .sfb/.glb asset)")
+                    return@launch
+                }
+                swapRenderable(renderable)
+            } catch (e: Exception) {
+                Log.w(TAG, "showModel failed for $modelId: ${e.message}")
             }
-            swapRenderable(renderable)
         }
     }
 

@@ -18,19 +18,8 @@ import javax.inject.Singleton
 /**
  * SoundManager
  *
- * Manages all audio in the application using Android [SoundPool] for short
- * sound effects (belt jingles, henshin cries) and falls back gracefully when
- * assets are missing.
- *
- * Sound files must be placed at:
- *   app/src/main/assets/sound/<soundId>.mp3  (or .ogg)
- *
- * Features:
- * - Load-on-demand with caching
- * - Simultaneous overlapping streams
- * - Per-stream stop
- * - Delayed playback
- * - Loop support
+ * Manages all audio using Android [SoundPool].
+ * Sound files are loaded from assets/sound/<soundId>.<ext> (ogg/mp3/wav).
  */
 @Singleton
 class SoundManager @Inject constructor(
@@ -40,6 +29,7 @@ class SoundManager @Inject constructor(
     companion object {
         private const val TAG = "SoundManager"
         private const val MAX_STREAMS = 8
+        private const val SOUND_DIR = "sound"
         private val EXTENSIONS = listOf("ogg", "mp3", "wav")
     }
 
@@ -50,7 +40,7 @@ class SoundManager @Inject constructor(
     /** soundId → SoundPool resource id */
     private val loadedSounds = mutableMapOf<String, Int>()
 
-    /** soundId → active stream ids (multiple streams per sound allowed) */
+    /** soundId → active stream ids */
     private val activeStreams = mutableMapOf<String, MutableList<Int>>()
 
     override fun initialize() {
@@ -83,26 +73,20 @@ class SoundManager @Inject constructor(
     // ------------------------------------------------------------------
 
     /**
-     * Pre-load a sound so it is ready for instant playback later.
+     * Pre-load a sound from assets so it is ready for instant playback.
      * Safe to call multiple times for the same [soundId].
      */
     fun preload(soundId: String) {
         if (soundId in loadedSounds) return
-        val resId = resolveAssetResId(soundId) ?: run {
-            Log.w(TAG, "Sound asset not found: $soundId")
+        val poolId = loadFromAssets(soundId) ?: run {
+            Log.w(TAG, "Sound asset not found for preload: $soundId")
             return
         }
-        val poolId = soundPool.load(context, resId, 1)
         loadedSounds[soundId] = poolId
     }
 
     /**
-     * Play a sound. Auto-loads if not yet cached.
-     *
-     * @param soundId    logical sound identifier
-     * @param loop       true = loop indefinitely until [stop] is called
-     * @param volume     0.0 – 1.0
-     * @param delayMs    optional delay before playback begins
+     * Play a sound. Auto-loads from assets if not yet cached.
      */
     fun play(
         soundId: String,
@@ -116,7 +100,7 @@ class SoundManager @Inject constructor(
                 playImmediate(soundId, loop, volume)
             }
         } else {
-            playImmediate(soundId, loop, volume)
+            scope.launch { playImmediate(soundId, loop, volume) }
         }
     }
 
@@ -145,37 +129,49 @@ class SoundManager @Inject constructor(
 
     private fun playImmediate(soundId: String, loop: Boolean, volume: Float) {
         val poolId = loadedSounds.getOrPut(soundId) {
-            val resId = resolveAssetResId(soundId) ?: run {
+            loadFromAssets(soundId) ?: run {
                 Log.w(TAG, "Cannot play unknown sound: $soundId")
                 return
             }
-            soundPool.load(context, resId, 1)
         }
 
         val loopFlag = if (loop) -1 else 0
         val streamId = soundPool.play(poolId, volume, volume, 1, loopFlag, 1f)
 
         if (streamId == 0) {
-            Log.w(TAG, "SoundPool.play returned 0 for $soundId – likely still loading")
+            Log.w(TAG, "SoundPool.play returned 0 for $soundId – likely still loading; retrying")
+            // Retry after a short delay to let the asset finish loading
+            scope.launch {
+                delay(200)
+                val retryStreamId = soundPool.play(poolId, volume, volume, 1, loopFlag, 1f)
+                if (retryStreamId != 0) {
+                    activeStreams.getOrPut(soundId) { mutableListOf() }.add(retryStreamId)
+                }
+            }
         } else {
             activeStreams.getOrPut(soundId) { mutableListOf() }.add(streamId)
         }
     }
 
     /**
-     * Resolve a [soundId] to a raw resource id.
-     * Looks in res/raw/<soundId> (all supported extensions).
-     *
-     * NOTE: For assets/ instead of res/raw/, switch to AssetFileDescriptor
-     * and SoundPool.load(AssetFileDescriptor, priority).
+     * Load a sound from assets/sound/<soundId>.<ext> via [AssetFileDescriptor].
+     * Returns the SoundPool pool id, or null if the asset cannot be found.
      */
-    private fun resolveAssetResId(soundId: String): Int? {
-        // Try res/raw first (simplest approach for short clips)
+    private fun loadFromAssets(soundId: String): Int? {
+        val normalizedId = soundId.replace("-", "_").replace(" ", "_")
         for (ext in EXTENSIONS) {
-            val name = soundId.replace("-", "_").replace(" ", "_")
-            val resId = context.resources.getIdentifier(name, "raw", context.packageName)
-            if (resId != 0) return resId
+            val assetPath = "$SOUND_DIR/$normalizedId.$ext"
+            try {
+                val afd = context.assets.openFd(assetPath)
+                val poolId = soundPool.load(afd, 1)
+                afd.close()
+                Log.d(TAG, "Loaded sound: $assetPath → poolId=$poolId")
+                return poolId
+            } catch (_: Exception) {
+                // Try next extension
+            }
         }
+        Log.w(TAG, "Sound not found in assets: $normalizedId (tried ${EXTENSIONS.joinToString()})")
         return null
     }
 }

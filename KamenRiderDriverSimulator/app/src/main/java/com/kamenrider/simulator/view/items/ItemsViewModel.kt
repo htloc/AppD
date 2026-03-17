@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import com.kamenrider.simulator.common.event.GameAction
 import com.kamenrider.simulator.common.manager.ActionManager
+import com.kamenrider.simulator.data.model.Driver
 import com.kamenrider.simulator.data.model.RiderItem
 import com.kamenrider.simulator.data.repository.DriverRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -15,7 +16,10 @@ import javax.inject.Inject
 
 data class ItemsUiState(
     val items: List<RiderItem> = emptyList(),
-    val selectedItemId: String? = null
+    val selectedItemId: String? = null,
+    val selectedSlotIndex: Int = 0,
+    val driver: Driver? = null,
+    val insertedItemIds: List<String?> = emptyList()
 )
 
 @HiltViewModel
@@ -25,7 +29,6 @@ class ItemsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    // Optional: filter by driver id if navigated from a driver detail
     private val driverId: String? = savedStateHandle["driverId"]
 
     private val _uiState = MutableStateFlow(ItemsUiState())
@@ -37,7 +40,14 @@ class ItemsViewModel @Inject constructor(
         } else {
             repository.getAllItems()
         }
-        _uiState.update { it.copy(items = items) }
+        val driver = driverId?.let { repository.getDriverById(it) }
+        _uiState.update {
+            it.copy(
+                items = items,
+                driver = driver,
+                insertedItemIds = MutableList(driver?.insertSlots ?: 1) { null }
+            )
+        }
     }
 
     fun onItemSelected(item: RiderItem) {
@@ -45,7 +55,16 @@ class ItemsViewModel @Inject constructor(
         actionManager.dispatchAction(GameAction.PlaySound("menu_select"))
     }
 
+    fun onSlotSelected(slotIndex: Int) {
+        _uiState.update { it.copy(selectedSlotIndex = slotIndex) }
+    }
+
     fun onItemInserted(item: RiderItem, slotIndex: Int, onNavigate: () -> Unit) {
+        _uiState.update { state ->
+            val newSlots = state.insertedItemIds.toMutableList()
+            if (slotIndex < newSlots.size) newSlots[slotIndex] = item.id
+            state.copy(insertedItemIds = newSlots)
+        }
         actionManager.dispatchAction(GameAction.InsertItem(item.id, slotIndex))
         actionManager.dispatchAction(GameAction.PlaySound("gashat_insert"))
         onNavigate()

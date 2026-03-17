@@ -98,12 +98,17 @@ class ShowViewModel @Inject constructor(
     }
 
     private fun preloadAssets() {
+        // Model preloading is best-effort; it will silently skip
+        // missing .sfb/.glb assets (placeholders not present).
         viewModelScope.launch {
-            val forms = repository.getFormsByDriver(driverId)
-            val modelIds = forms.map { it.modelAsset
-                .removeSuffix(".sfb")
-                .removePrefix("object3d/") }
-            modelLoader.preload(modelIds)
+            try {
+                val forms = repository.getFormsByDriver(driverId)
+                val modelIds = forms.map { it.modelAsset
+                    .removeSuffix(".sfb")
+                    .removeSuffix(".glb")
+                    .removePrefix("object3d/") }
+                modelLoader.preload(modelIds)
+            } catch (_: Exception) { /* no 3D models – ignore */ }
         }
     }
 
@@ -126,7 +131,18 @@ class ShowViewModel @Inject constructor(
         _uiState.update { state ->
             val newSlots = state.insertedItemIds.toMutableList()
             if (slotIndex < newSlots.size) newSlots[slotIndex] = null
-            state.copy(insertedItemIds = newSlots)
+            state.copy(insertedItemIds = newSlots, currentForm = null)
+        }
+    }
+
+    /** Reset all slots, clear form and transformation state. */
+    fun onResetAll() {
+        transformationManager.clearAllItems()
+        _uiState.update { state ->
+            state.copy(
+                insertedItemIds = MutableList(state.insertedItemIds.size) { null },
+                currentForm = null
+            )
         }
     }
 
