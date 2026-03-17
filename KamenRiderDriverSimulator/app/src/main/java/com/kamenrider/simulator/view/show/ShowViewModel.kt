@@ -23,14 +23,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/**
- * ShowUiState – everything the Show screen needs to render.
- */
 data class ShowUiState(
     val driver: Driver? = null,
     val availableItems: List<RiderItem> = emptyList(),
-    val insertedItemIds: List<String?> = emptyList(),   // null = empty slot
+    val availableForms: List<TransformationForm> = emptyList(),
+    val insertedItemIds: List<String?> = emptyList(),
     val currentForm: TransformationForm? = null,
+    val selectedItem: RiderItem? = null,
     val snackbarMessage: String? = null,
     val isLoading: Boolean = false
 )
@@ -51,9 +50,6 @@ class ShowViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ShowUiState())
     val uiState: StateFlow<ShowUiState> = _uiState.asStateFlow()
 
-    /**
-     * Expose transformation state directly from the manager.
-     */
     val transformationState: StateFlow<TransformationState> = transformationManager.state
         .stateIn(viewModelScope, SharingStarted.Eagerly, TransformationState.Idle)
 
@@ -64,21 +60,18 @@ class ShowViewModel @Inject constructor(
         preloadAssets()
     }
 
-    // ------------------------------------------------------------------
-    // Setup
-    // ------------------------------------------------------------------
-
     private fun loadDriver() {
         val driver = repository.getDriverById(driverId) ?: return
-        val items  = repository.getItemsByDriver(driverId)
+        val items = repository.getItemsByDriver(driverId)
+        val forms = repository.getFormsByDriver(driverId)
         _uiState.update {
             it.copy(
                 driver = driver,
                 availableItems = items,
+                availableForms = forms,
                 insertedItemIds = MutableList(driver.insertSlots) { null }
             )
         }
-        // Reset transformation state
         transformationManager.clearAllItems()
     }
 
@@ -98,8 +91,6 @@ class ShowViewModel @Inject constructor(
     }
 
     private fun preloadAssets() {
-        // Model preloading is best-effort; it will silently skip
-        // missing .sfb/.glb assets (placeholders not present).
         viewModelScope.launch {
             try {
                 val forms = repository.getFormsByDriver(driverId)
@@ -108,14 +99,36 @@ class ShowViewModel @Inject constructor(
                     .removeSuffix(".glb")
                     .removePrefix("object3d/") }
                 modelLoader.preload(modelIds)
-            } catch (_: Exception) { /* no 3D models – ignore */ }
+            } catch (_: Exception) { }
         }
     }
 
-    // ------------------------------------------------------------------
-    // Public – called from UI
-    // ------------------------------------------------------------------
+    // Item selection
+    fun onItemSelected(item: RiderItem) {
+        _uiState.update { it.copy(selectedItem = item) }
+        actionManager.dispatchAction(GameAction.PlaySound("menu_select"))
+    }
 
+    fun clearSelectedItem() {
+        _uiState.update { it.copy(selectedItem = null) }
+    }
+
+    // Insert selected item to slot
+    fun onInsertToSlot(slotIndex: Int) {
+        val selectedItem = _uiState.value.selectedItem ?: return
+        
+        // Check if slot already has item
+        val existingItemId = _uiState.value.insertedItemIds.getOrNull(slotIndex)
+        if (existingItemId != null) {
+            showSnackbar("Slot $slotIndex already has an item!")
+            return
+        }
+        
+        onItemInsertedToSlot(selectedItem, slotIndex)
+        clearSelectedItem()
+    }
+
+    // Direct insert (from ItemsScreen legacy flow)
     fun onItemInsertedToSlot(item: RiderItem, slotIndex: Int) {
         transformationManager.insertItem(item.id, slotIndex)
         _uiState.update { state ->
@@ -135,7 +148,6 @@ class ShowViewModel @Inject constructor(
         }
     }
 
-    /** Reset all slots, clear form and transformation state. */
     fun onResetAll() {
         transformationManager.clearAllItems()
         _uiState.update { state ->
@@ -155,13 +167,15 @@ class ShowViewModel @Inject constructor(
         }
     }
 
+    // Change to different form (level switch)
+    fun onFormSelected(form: TransformationForm) {
+        _uiState.update { it.copy(currentForm = form) }
+        actionManager.dispatchAction(GameAction.TriggerTransformation(form.id))
+    }
+
     fun onSnackbarDismissed() {
         _uiState.update { it.copy(snackbarMessage = null) }
     }
-
-    // ------------------------------------------------------------------
-    // Action handler
-    // ------------------------------------------------------------------
 
     private fun handleAction(action: GameAction) {
         when (action) {
@@ -180,13 +194,9 @@ class ShowViewModel @Inject constructor(
             is GameAction.ShowMessage -> {
                 showSnackbar(action.message)
             }
-            else -> { /* Other actions handled by SoundManager / AnimationManager */ }
+            else -> { }
         }
     }
-
-    // ------------------------------------------------------------------
-    // Helpers
-    // ------------------------------------------------------------------
 
     private fun resolveCurrentFormId(): String? {
         val insertedIds = transformationManager.getInsertedItemIds()
