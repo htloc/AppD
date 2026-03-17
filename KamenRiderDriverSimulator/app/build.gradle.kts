@@ -86,10 +86,7 @@ dependencies {
     // Serialization
     implementation(libs.kotlinx.serialization.json)
 
-    // Sceneform for 3D rendering
-    implementation(libs.sceneform)
-
-    // Media3 for sound
+    // Media3 for sound (used by SoundManager via SoundPool, but keeping for future use)
     implementation(libs.media3.exoplayer)
 
     // Coil for image loading
