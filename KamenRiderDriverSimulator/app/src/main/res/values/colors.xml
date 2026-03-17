@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="rider_pink">#FFE91E63</color>
+    <color name="rider_blue">#FF42A5F5</color>
+    <color name="rider_gold">#FFFFD700</color>
+    <color name="background_dark">#FF0A0A1A</color>
+    <color name="surface_dark">#FF1A1A2E</color>
+</resources>

@@ -85,3 +85,12 @@ export async function GET() {
 | Date | Changes |
 |------|---------|
 | Initial | Template created with base setup |
+| 2026-03-17 | Generated full Kamen Rider Driver Simulator Android project in KamenRiderDriverSimulator/ |
+
+## KamenRiderDriverSimulator Sub-project
+
+Full Android app generated at `KamenRiderDriverSimulator/`.
+Stack: Kotlin, Jetpack Compose, MVVM, Hilt, Sceneform, Navigation Compose.
+All core systems implemented: InputManager, ActionManager, SoundManager,
+AnimationManager, TransformationManager, ModelLoader, SceneController.
+Four screens: Home, Drivers, Items, Show (main game).
